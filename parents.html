@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>بوابة الأولياء — حاضنة الأطفال الذكية</title>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue, set, push, serverTimestamp, get }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  window._fb = { initializeApp, getDatabase, ref, onValue, set, push, serverTimestamp, get };
+</script>
+<style>
+/* ──────────────────────── TOKENS ──────────────────────── */
+:root {
+  --sky:    #e8f4fd;
+  --deep:   #1a4a6e;
+  --teal:   #2a9d8f;
+  --warm:   #f4a261;
+  --blush:  #fff0f5;
+  --mist:   #f7fbff;
+  --card:   #ffffff;
+  --border: #dbeafe;
+  --text:   #1e3a5f;
+  --sub:    #5b8db0;
+  --danger: #e53e3e;
+  --ok:     #38a169;
+  --warn:   #d69e2e;
+  --radius: 18px;
+  --shadow: 0 4px 24px rgba(26,74,110,0.10);
+  --shadow-lg: 0 12px 40px rgba(26,74,110,0.18);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(160deg, #cce7ff 0%, #e8f4fd 40%, #fff0f5 100%);
+  min-height: 100vh;
+  color: var(--text);
+  direction: rtl;
+}
+
+/* ──── SHARED ──── */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px;
+  border: 1px solid var(--border);
+}
+.btn {
+  padding: 13px 28px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .25s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-primary { background: linear-gradient(135deg, var(--deep), var(--teal)); color:#fff; }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(42,157,143,0.35); }
+.btn-danger  { background: var(--danger); color:#fff; }
+.btn-sm { padding: 8px 16px; font-size:.88em; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: 20px;
+  font-size: .82em; font-weight: 700;
+}
+.badge-ok      { background:rgba(56,161,105,.15); color:var(--ok); }
+.badge-warn    { background:rgba(214,158,46,.15);  color:var(--warn); }
+.badge-danger  { background:rgba(229,62,62,.15);   color:var(--danger); }
+.badge-grey    { background:rgba(91,141,176,.12);  color:var(--sub); }
+.pulse { animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+.dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+.dot-green  { background:var(--ok); }
+.dot-yellow { background:var(--warn); }
+.dot-red    { background:var(--danger); }
+.dot-grey   { background:#aaa; }
+
+/* ──── LOGIN SCREEN ──── */
+#loginScreen {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.login-box {
+  width: 100%;
+  max-width: 430px;
+}
+.login-logo {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.login-logo .icon-wrap {
+  width: 90px; height: 90px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--deep), var(--teal));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.8em;
+  margin: 0 auto 16px;
+  box-shadow: 0 8px 28px rgba(42,157,143,.35);
+  animation: float 4s ease-in-out infinite;
+}
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+.login-logo h1 { color: var(--deep); font-size: 1.5em; }
+.login-logo p  { color: var(--sub); font-size:.9em; margin-top:4px; }
+
+.form-field { margin-bottom: 18px; }
+.form-field label {
+  display: block;
+  font-size: .85em; font-weight: 600;
+  color: var(--sub); margin-bottom: 7px;
+}
+.form-field input, .form-field select {
+  width: 100%;
+  padding: 13px 16px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  font-size: 1em;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--mist);
+  transition: border-color .2s;
+  outline: none;
+}
+.form-field input:focus, .form-field select:focus {
+  border-color: var(--teal);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(42,157,143,.1);
+}
+.login-err {
+  background: #fff5f5; border: 1.5px solid #fca5a5;
+  border-radius: 10px; padding: 12px 16px;
+  color: var(--danger); font-size: .88em;
+  margin-bottom: 16px; display: none;
+}
+
+/* ──── MAIN APP ──── */
+#app { display: none; min-height: 100vh; }
+
+/* Top bar */
+.topbar {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 12px rgba(26,74,110,.07);
+}
+.topbar-brand { display:flex; align-items:center; gap:12px; }
+.topbar-brand .logo-sm {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--deep), var(--teal));
+  display: flex; align-items: center; justify-content: center; font-size:1.3em;
+}
+.topbar-brand h2 { font-size:1.1em; color:var(--deep); }
+.topbar-brand p  { font-size:.78em; color:var(--sub); }
+.topbar-right    { display:flex; align-items:center; gap:12px; }
+
+/* Tab nav */
+.tab-nav {
+  display: flex; gap: 6px;
+  padding: 12px 28px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,.7);
+  backdrop-filter: blur(10px);
+  overflow-x: auto;
+  position: sticky; top: 65px; z-index: 90;
+}
+.tab-btn {
+  padding: 10px 20px; border: none; border-radius: 10px;
+  background: transparent; color: var(--sub);
+  font-size: .9em; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: all .2s;
+}
+.tab-btn:hover  { background: rgba(42,157,143,.08); color:var(--teal); }
+.tab-btn.active { background: linear-gradient(135deg,var(--deep),var(--teal)); color:#fff; box-shadow: 0 4px 12px rgba(42,157,143,.3); }
+
+.tab-pane { display:none; padding: 24px 28px; max-width: 960px; margin: 0 auto; }
+.tab-pane.active { display:block; animation: fadeUp .3s ease; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ──── STATUS TAB ──── */
+.status-hero {
+  background: linear-gradient(135deg, var(--deep) 0%, var(--teal) 100%);
+  border-radius: var(--radius);
+  padding: 32px;
+  color: #fff;
+  display: flex; align-items: center; gap: 24px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.status-hero::before {
+  content: ''; position: absolute; right: -40px; top: -40px;
+  width: 200px; height: 200px; border-radius: 50%;
+  background: rgba(255,255,255,.06);
+}
+.baby-avatar {
+  width: 90px; height: 90px; border-radius: 50%;
+  background: rgba(255,255,255,.18);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 3.2em; flex-shrink: 0;
+  border: 3px solid rgba(255,255,255,.3);
+  animation: breathe 4s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.04)}
+}
+.status-hero h2 { font-size:1.5em; margin-bottom:6px; }
+.status-hero p  { opacity:.85; font-size:.92em; line-height:1.7; }
+.hero-live {
+  margin-top:12px;
+  display:inline-flex; align-items:center; gap:8px;
+  background:rgba(255,255,255,.15); padding:6px 14px;
+  border-radius:20px; font-size:.82em; font-weight:700;
+}
+
+.vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.vital-card {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 20px 16px;
+  text-align: center;
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: transform .25s;
+}
+.vital-card:hover { transform: translateY(-3px); }
+.vital-icon  { font-size: 2em; margin-bottom:8px; }
+.vital-val   { font-size: 1.9em; font-weight: 800; color: var(--deep); font-variant-numeric: tabular-nums; }
+.vital-label { font-size: .78em; color: var(--sub); margin-top:4px; font-weight: 600; }
+.vital-status{ margin-top:8px; }
+
+/* Environment strip */
+.env-strip {
+  display: flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;
+}
+.env-chip {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 18px;
+  display: flex; align-items:center; gap:10px;
+  font-size:.88em; font-weight:600; color:var(--text);
+  box-shadow: var(--shadow);
+}
+.env-chip span.val { color: var(--deep); font-size:1.1em; }
+
+/* Presence banner */
+.presence-banner {
+  border-radius: 14px;
+  padding: 18px 22px;
+  display: flex; align-items:center; gap:16px;
+  margin-bottom: 20px;
+  border: 2px solid;
+  transition: all .4s;
+}
+.presence-banner.present {
+  background: rgba(56,161,105,.07);
+  border-color: var(--ok);
+}
+.presence-banner.absent {
+  background: rgba(229,62,62,.07);
+  border-color: var(--danger);
+  animation: shake .4s ease;
+}
+@keyframes shake {
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-6px)}
+  75%{transform:translateX(6px)}
+}
+
+/* ──── CAMERA TAB ──── */
+.cam-wrap {
+  background: #050d14;
+  border-radius: var(--radius);
+  overflow: hidden;
+  aspect-ratio: 16/9;
+  max-height: 460px;
+  position: relative;
+  margin-bottom: 16px;
+  border: 2px solid var(--border);
+}
+.cam-wrap video { width:100%; height:100%; object-fit:cover; display:block; }
+.cam-overlay-ph {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background: linear-gradient(135deg,#050d14,#0a1a2e);
+  color:#334;
+  gap:14px;
+}
+.cam-overlay-ph .ph-icon { font-size:4em; opacity:.4; }
+.cam-overlay-ph p { font-size:.85em; color:#446; }
+.cam-live-badge {
+  position:absolute; top:12px; right:12px;
+  background:rgba(229,62,62,.9); color:#fff;
+  padding:4px 12px; border-radius:20px;
+  font-size:.75em; font-weight:700;
+  display:none; align-items:center; gap:6px;
+}
+.cam-live-dot {
+  width:7px; height:7px; border-radius:50%;
+  background:#fff; animation: blink 1s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+.cam-controls {
+  display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+  background:var(--card); border-radius:12px;
+  padding:14px 18px; border:1px solid var(--border);
+}
+
+/* ──── CHAT TAB ──── */
+.chat-wrap {
+  display:flex; flex-direction:column;
+  height:calc(100vh - 260px);
+  min-height:420px;
+  background: var(--card);
+  border-radius: var(--radius);
+  overflow:hidden;
+  box-shadow: var(--shadow-lg);
+  border: 1.5px solid var(--border);
+}
+.chat-header {
+  background: linear-gradient(135deg,var(--deep),var(--teal));
+  padding:18px 24px;
+  display:flex; align-items:center; gap:14px;
+  color:#fff;
+}
+.chat-header .avatar {
+  width:44px; height:44px; border-radius:50%;
+  background:rgba(255,255,255,.2);
+  display:flex; align-items:center; justify-content:center; font-size:1.5em;
+  border:2px solid rgba(255,255,255,.3);
+}
+.chat-header h3 { font-size:1.05em; }
+.chat-header p  { font-size:.78em; opacity:.85; margin-top:2px; }
+.chat-online {
+  margin-right:auto;
+  background:rgba(255,255,255,.15);
+  padding:5px 12px; border-radius:20px;
+  font-size:.78em; font-weight:600;
+  display:flex; align-items:center; gap:6px;
+}
+
+.chat-msgs {
+  flex:1; overflow-y:auto; padding:20px;
+  display:flex; flex-direction:column; gap:12px;
+  background: linear-gradient(to bottom, #f7fbff, #fff0f5 80%);
+}
+
+.msg { display:flex; gap:10px; animation: msgIn .3s ease; }
+@keyframes msgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.msg.mine { flex-direction:row-reverse; }
+.msg-av {
+  width:36px; height:36px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:1.2em;
+}
+.msg-body { max-width:72%; }
+.msg-bubble {
+  padding:12px 16px; border-radius:16px;
+  line-height:1.6; font-size:.9em; word-break:break-word;
+}
+.msg.other .msg-av  { background:rgba(26,74,110,.1); }
+.msg.other .msg-bubble {
+  background:#fff; color:var(--text);
+  border:1.5px solid var(--border);
+  border-top-right-radius:4px;
+  box-shadow:0 2px 8px rgba(0,0,0,.06);
+}
+.msg.mine .msg-av   { background:rgba(42,157,143,.15); }
+.msg.mine .msg-bubble {
+  background: linear-gradient(135deg,var(--deep),var(--teal));
+  color:#fff; border-top-left-radius:4px;
+}
+.msg-meta { font-size:.72em; color:var(--sub); margin-top:4px; }
+.msg.mine .msg-meta { text-align:left; }
+
+.typing-indicator {
+  display:none; align-items:center; gap:10px; padding:0 20px 10px;
+}
+.typing-indicator.show { display:flex; }
+.typing-dots {
+  display:flex; gap:4px; padding:10px 14px;
+  background:#fff; border-radius:14px;
+  border:1.5px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,.06);
+}
+.typing-dot {
+  width:7px; height:7px; border-radius:50%; background:var(--teal);
+  animation: td 1.3s infinite;
+}
+.typing-dot:nth-child(2){animation-delay:.2s}
+.typing-dot:nth-child(3){animation-delay:.4s}
+@keyframes td { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-8px)} }
+
+.chat-input-row {
+  display:flex; gap:10px; padding:16px 20px;
+  border-top:1.5px solid var(--border);
+  background:var(--card);
+}
+.chat-input {
+  flex:1; padding:13px 18px;
+  border:2px solid var(--border); border-radius:24px;
+  font-size:.95em; font-family:inherit;
+  color:var(--text); background:var(--mist);
+  resize:none; outline:none; max-height:110px;
+  transition:border-color .2s;
+}
+.chat-input:focus {
+  border-color:var(--teal);
+  background:#fff;
+  box-shadow:0 0 0 4px rgba(42,157,143,.1);
+}
+.send-btn {
+  width:48px; height:48px; border-radius:50%; border:none; flex-shrink:0;
+  background:linear-gradient(135deg,var(--deep),var(--teal));
+  color:#fff; font-size:1.2em; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .2s; align-self:flex-end;
+}
+.send-btn:hover { transform:scale(1.1); box-shadow:0 4px 14px rgba(42,157,143,.4); }
+.send-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+
+/* ──── RESPONSIVE ──── */
+@media(max-width:600px){
+  .topbar    { padding:12px 16px; }
+  .tab-nav   { padding:8px 12px; }
+  .tab-pane  { padding:16px 12px; }
+  .status-hero { flex-direction:column; text-align:center; }
+  .vitals-grid { grid-template-columns:1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════ LOGIN ════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="icon-wrap">👶</div>
+      <h1>بوابة الأولياء</h1>
+      <p>حاضنة الأطفال الذكية — جامعة مصطفى اسطمبولي</p>
+    </div>
+    <div class="card">
+      <div class="login-err" id="loginErr"></div>
+      <div class="form-field">
+        <label>🔗 رابط Firebase Database</label>
+        <input type="text" id="loginUrl"
+          value="https://incubateur-neonatale-default-rtdb.firebaseio.com/"
+          placeholder="https://your-project.firebaseio.com/">
+      </div>
+      <div class="form-field">
+        <label>👶 اسم الرضيع (كما هو في الملف الطبي)</label>
+        <input type="text" id="loginName" placeholder="مثال: أحمد بن خالد" autocomplete="off">
+      </div>
+      <div class="form-field">
+        <label>🛏️ رقم الملف الطبي</label>
+        <input type="text" id="loginFile" placeholder="مثال: NICU-001" autocomplete="off">
+      </div>
+      <div class="form-field">
+        <label>📱 رقم الهاتف المسجّل</label>
+        <input type="tel" id="loginPhone" placeholder="+213xxxxxxxxx">
+      </div>
+      <div class="form-field">
+        <label>🗂️ مسار البيانات</label>
+        <select id="loginPath">
+          <option value="incubator">incubator (افتراضي)</option>
+          <option value="incubateurs/1">incubateurs/1</option>
+          <option value="patients/patient1">patients/patient1</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:1.05em;" onclick="doLogin()">
+        <span>🔐</span> دخول
+      </button>
+      <p style="text-align:center;margin-top:16px;font-size:.8em;color:var(--sub);">
+        بيانات الدخول يحددها الفريق الطبي. للمساعدة تواصل مع وحدة NICU.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════ APP ════════════════════════ -->
+<div id="app">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="logo-sm">👶</div>
+      <div>
+        <h2 id="appBabyName">رضيع</h2>
+        <p id="appFileNo">بوابة الأولياء</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="badge" id="fbStatusBadge" style="display:none;"></div>
+      <button class="btn btn-sm" onclick="doLogout()"
+        style="background:rgba(229,62,62,.1);color:var(--danger);border:1.5px solid rgba(229,62,62,.2);">
+        <span>⬅</span> خروج
+      </button>
+    </div>
+  </div>
+
+  <!-- Tab nav -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="openTab('status')">💚 حالة الرضيع</button>
+    <button class="tab-btn"       onclick="openTab('camera')">📷 مشاهدة الرضيع</button>
+    <button class="tab-btn"       onclick="openTab('chat')">💬 تواصل مع الفريق الطبي</button>
+  </div>
+
+  <!-- ── TAB: STATUS ── -->
+  <div id="tab-status" class="tab-pane active">
+
+    <!-- Hero -->
+    <div class="status-hero">
+      <div class="baby-avatar" id="heroPresenceIcon">👶</div>
+      <div>
+        <h2 id="heroName">جاري التحميل...</h2>
+        <p id="heroMsg">نظام المراقبة يعمل — البيانات تُحدَّث بشكل فوري</p>
+        <div class="hero-live">
+          <span class="dot dot-green pulse"></span>
+          <span>مراقبة حية</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Presence banner -->
+    <div class="presence-banner present" id="presenceBanner">
+      <div style="font-size:2em;" id="presenceEmoji">✅</div>
+      <div>
+        <div style="font-weight:700;font-size:1.05em;" id="presenceTitle">الرضيع داخل الحاضنة</div>
+        <div style="font-size:.85em;color:var(--sub);margin-top:3px;" id="presenceSub">الحالة تُحدَّث تلقائياً</div>
+      </div>
+    </div>
+
+    <!-- Vitals (simplified, no raw numbers, just status) -->
+    <div class="vitals-grid">
+      <div class="vital-card">
+        <div class="vital-icon">🌡️</div>
+        <div class="vital-label">درجة الحرارة</div>
+        <div class="vital-status"><span class="badge badge-grey" id="vtTemp">⏳ انتظار</span></div>
+      </div>
+      <div class="vital-card">
+        <div class="vital-icon">❤️</div>
+        <div class="vital-label">نبضات القلب</div>
+        <div class="vital-status"><span class="badge badge-grey" id="vtHeart">⏳ انتظار</span></div>
+      </div>
+      <div class="vital-card">
+        <div class="vital-icon">💧</div>
+        <div class="vital-label">الرطوبة</div>
+        <div class="vital-status"><span class="badge badge-grey" id="vtHumidity">⏳ انتظار</span></div>
+      </div>
+      <div class="vital-card">
+        <div class="vital-icon">💨</div>
+        <div class="vital-label">جودة الهواء</div>
+        <div class="vital-status"><span class="badge badge-grey" id="vtAir">⏳ انتظار</span></div>
+      </div>
+    </div>
+
+    <!-- Env strip -->
+    <div class="env-strip">
+      <div class="env-chip">🏠 حرارة الحاضنة: <span class="val" id="envTempVal">--°C</span></div>
+      <div class="env-chip">⚖️ الوزن: <span class="val" id="envWeightVal">-- جم</span></div>
+      <div class="env-chip">🕐 آخر تحديث: <span class="val" id="lastUpdate">--</span></div>
+    </div>
+
+    <!-- Notes from medical team -->
+    <div class="card" style="margin-top:0;">
+      <div style="font-weight:700;color:var(--deep);margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:1.05em;">
+        <span>📋</span> ملاحظات الفريق الطبي
+      </div>
+      <div id="medNotes" style="line-height:2;color:var(--sub);font-size:.92em;">
+        <div style="text-align:center;padding:20px;opacity:.6;">جاري التحميل...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: CAMERA ── -->
+  <div id="tab-camera" class="tab-pane">
+    <div class="cam-wrap">
+      <video id="camVid" autoplay playsinline></video>
+      <div class="cam-overlay-ph" id="camPh">
+        <div class="ph-icon">📷</div>
+        <p>الكاميرا غير متصلة حالياً</p>
+        <p style="font-size:.78em;opacity:.5;">سيتم عرض رضيعك هنا عند توفر البث</p>
+      </div>
+      <div class="cam-live-badge" id="camLive">
+        <span class="cam-live-dot"></span> مباشر
+      </div>
+    </div>
+    <div class="cam-controls">
+      <div style="flex:1;font-size:.85em;color:var(--sub);">
+        <div id="camStatusTxt">⏳ في انتظار بث الكاميرا...</div>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="camFullscreen()">⛶ ملء الشاشة</button>
+      <button class="btn btn-sm btn-primary" onclick="camSnap()">📸 لقطة</button>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div style="font-weight:700;color:var(--deep);margin-bottom:10px;">⚙️ معرّف غرفة الكاميرا</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="camRoom" value="room-incubator-1" class="chat-input" style="max-width:260px;padding:10px 14px;">
+        <button class="btn btn-primary btn-sm" onclick="connectParentCam()">📡 اتصال</button>
+        <button class="btn btn-sm" onclick="disconnectParentCam()" style="background:rgba(229,62,62,.1);color:var(--danger);">✖ قطع</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: CHAT ── -->
+  <div id="tab-chat" class="tab-pane">
+    <div class="chat-wrap">
+      <div class="chat-header">
+        <div class="avatar">🩺</div>
+        <div>
+          <h3>الفريق الطبي — وحدة NICU</h3>
+          <p>تواصل مباشر مع الممرضين والأطباء</p>
+        </div>
+        <div class="chat-online">
+          <span class="dot dot-green pulse"></span> متصل
+        </div>
+      </div>
+      <div class="chat-msgs" id="chatMsgs">
+        <!-- messages injected here -->
+      </div>
+      <div class="typing-indicator" id="typingInd">
+        <div style="font-size:.8em;color:var(--sub);margin-left:8px;">الفريق الطبي يكتب...</div>
+        <div class="typing-dots">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <textarea class="chat-input" id="chatIn" rows="1"
+          placeholder="اكتب رسالتك للفريق الطبي..."
+          onkeydown="chatKey(event)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMsg()">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════ SCRIPT ════════════════════════ -->
+<script type="module">
+
+async function waitFb() {
+  while (!window._fb) await new Promise(r=>setTimeout(r,60));
+  return window._fb;
+}
+
+// ── state ──
+let db=null, fbApp=null, unsub=null, session=null;
+let camPc=null, camWatcher=null, camActive=false;
+let chatUnsub=null;
+
+// ════════ LOGIN ════════
+window.doLogin = async () => {
+  const url   = document.getElementById('loginUrl').value.trim();
+  const name  = document.getElementById('loginName').value.trim();
+  const file  = document.getElementById('loginFile').value.trim();
+  const phone = document.getElementById('loginPhone').value.trim();
+  const path  = document.getElementById('loginPath').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.style.display='none';
+
+  if (!url||!name||!file||!phone) {
+    errEl.textContent='⚠️ يرجى ملء جميع الحقول.'; errEl.style.display='block'; return;
+  }
+
+  const { initializeApp, getDatabase, ref, get } = await waitFb();
+  try {
+    if (!fbApp) fbApp = initializeApp({ databaseURL: url }, 'parents-app');
+    db = getDatabase(fbApp);
+
+    // التحقق من الملف الطبي في Firebase
+    const snap = await get(ref(db, `${path}/patient`));
+    const patient = snap.val();
+
+    let verified = false;
+    if (patient) {
+      const pName  = (patient.fullName  || '').trim().toLowerCase();
+      const pFile  = (patient.fileNumber|| '').trim().toLowerCase();
+      const pPhone = (patient.phone     || '').trim().replace(/\s/g,'');
+      const inName  = name.toLowerCase();
+      const inFile  = file.toLowerCase();
+      const inPhone = phone.replace(/\s/g,'');
+
+      // نتحقق من الاسم + رقم الملف (والهاتف اختياري إذا غير مسجل)
+      if (pName && pFile) {
+        verified = (pName.includes(inName) || inName.includes(pName)) && pFile === inFile;
+        if (pPhone) verified = verified && (pPhone === inPhone || inPhone === '' );
+      } else {
+        // لا يوجد ملف طبي محفوظ بعد — السماح للأولياء بالدخول بالتحقق البسيط
+        verified = name.length > 2 && file.length > 2;
+      }
+    } else {
+      // لا يوجد ملف طبي محفوظ — السماح بالدخول إذا ملأ البيانات
+      verified = name.length > 2 && file.length > 2;
+    }
+
+    if (!verified) {
+      errEl.textContent='❌ البيانات غير متطابقة. يرجى التحقق من الاسم ورقم الملف.';
+      errEl.style.display='block';
+      return;
+    }
+
+    session = { name, file, phone, path, url };
+    startApp();
+  } catch(e) {
+    errEl.textContent='❌ فشل الاتصال: ' + e.message; errEl.style.display='block';
+  }
+};
+
+window.doLogout = () => {
+  if (unsub)    { unsub(); unsub=null; }
+  if (chatUnsub){ chatUnsub(); chatUnsub=null; }
+  disconnectParentCam();
+  session=null; db=null;
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('app').style.display='none';
+};
+
+// ════════ APP START ════════
+function startApp() {
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('appBabyName').textContent = session.name;
+  document.getElementById('appFileNo').textContent   = 'ملف رقم: ' + session.file;
+  document.getElementById('heroName').textContent    = 'مرحباً بأسرة ' + session.name;
+  document.getElementById('heroMsg').textContent     = 'رضيعكم بأيدٍ أمينة — نتابع حالته على مدار الساعة';
+
+  listenSensors();
+  listenChat();
+  loadNotes();
+  addWelcomeMsg();
+}
+
+// ════════ SENSORS ════════
+function listenSensors() {
+  const { ref, onValue } = window._fb;
+  const sRef = ref(db, `${session.path}/sensors`);
+  unsub = onValue(sRef, snap => {
+    const s = snap.val();
+    if (!s) return;
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('ar');
+
+    // درجة الحرارة — فقط الحالة
+    if (s.bodyTemp !== undefined) {
+      const t = s.bodyTemp;
+      const ok = t >= 36.3 && t <= 37.5;
+      const el = document.getElementById('vtTemp');
+      el.className = 'badge ' + (ok ? 'badge-ok' : 'badge-danger');
+      el.textContent = ok ? '✅ طبيعية' : (t < 36.3 ? '⚠️ منخفضة' : '⚠️ مرتفعة');
+    }
+    // نبضات القلب
+    if (s.ecg !== undefined) {
+      const h = s.ecg;
+      const ok = h >= 100 && h <= 180;
+      const el = document.getElementById('vtHeart');
+      el.className = 'badge ' + (ok ? 'badge-ok' : 'badge-danger');
+      el.textContent = ok ? '✅ منتظمة' : '⚠️ تحتاج متابعة';
+    }
+    // الرطوبة
+    if (s.humidity !== undefined) {
+      const ok = s.humidity >= 40 && s.humidity <= 70;
+      const el = document.getElementById('vtHumidity');
+      el.className = 'badge ' + (ok ? 'badge-ok' : 'badge-warn');
+      el.textContent = ok ? '✅ مناسبة' : '⚠️ تحت الضبط';
+    }
+    // جودة الهواء
+    if (s.airQuality !== undefined) {
+      const ok = s.airQuality < 60;
+      const el = document.getElementById('vtAir');
+      el.className = 'badge ' + (ok ? 'badge-ok' : 'badge-warn');
+      el.textContent = ok ? '✅ جيدة' : '⚠️ قيد المراقبة';
+    }
+    // حرارة الحاضنة
+    if (s.envTemp !== undefined)
+      document.getElementById('envTempVal').textContent = s.envTemp.toFixed(1) + '°C';
+    // الوزن
+    if (s.weight !== undefined) {
+      const w = s.weight > 5000 ? (s.weight/1000).toFixed(2)+' كجم' : Math.round(s.weight)+' جم';
+      document.getElementById('envWeightVal').textContent = w;
+    }
+    // وجود الرضيع
+    if (s.babyPresent !== undefined) updatePresence(s.babyPresent);
+
+    // Firebase badge
+    const fb = document.getElementById('fbStatusBadge');
+    fb.className='badge badge-ok'; fb.textContent='● متصل'; fb.style.display='';
+  }, () => {
+    const fb = document.getElementById('fbStatusBadge');
+    fb.className='badge badge-danger'; fb.textContent='● خطأ'; fb.style.display='';
+  });
+}
+
+function updatePresence(present) {
+  const ban  = document.getElementById('presenceBanner');
+  const icon = document.getElementById('presenceEmoji');
+  const hero = document.getElementById('heroPresenceIcon');
+  const tit  = document.getElementById('presenceTitle');
+  const sub  = document.getElementById('presenceSub');
+  if (present) {
+    ban.className='presence-banner present';
+    icon.textContent='✅'; hero.textContent='👶';
+    tit.textContent='الرضيع داخل الحاضنة';
+    sub.textContent='الحالة مستقرة — آخر تحديث: '+new Date().toLocaleTimeString('ar');
+  } else {
+    ban.className='presence-banner absent';
+    icon.textContent='⚠️'; hero.textContent='🚨';
+    tit.textContent='الرضيع خارج الحاضنة';
+    sub.textContent='يرجى التواصل مع الفريق الطبي فوراً';
+  }
+}
+
+// ════════ NOTES ════════
+function loadNotes() {
+  const { ref, onValue } = window._fb;
+  onValue(ref(db, `${session.path}/parentNotes`), snap => {
+    const notes = snap.val();
+    const el = document.getElementById('medNotes');
+    if (!notes) {
+      el.innerHTML='<div style="text-align:center;padding:20px;opacity:.5;">لا توجد ملاحظات بعد. الفريق الطبي سيضيف تحديثات هنا.</div>';
+      return;
+    }
+    // notes يمكن أن يكون نص أو قائمة
+    if (typeof notes === 'string') {
+      el.innerHTML = `<div style="background:var(--blush);border-radius:10px;padding:14px 18px;border-right:4px solid var(--teal);">${notes}</div>`;
+    } else {
+      const items = Object.values(notes);
+      el.innerHTML = items.reverse().map(n=>
+        `<div style="background:var(--blush);border-radius:10px;padding:12px 16px;border-right:4px solid var(--teal);margin-bottom:8px;">
+          <div style="font-size:.78em;color:var(--sub);margin-bottom:5px;">${n.time||''}</div>
+          <div>${n.text||n}</div>
+        </div>`
+      ).join('');
+    }
+  });
+}
+
+// ════════ CHAT ════════
+function addWelcomeMsg() {
+  addMsgToUI({
+    sender: 'team',
+    name: 'الفريق الطبي',
+    text: `مرحباً بأسرة ${session.name}! 👶\nنحن هنا للإجابة عن استفساراتكم. رضيعكم في رعاية طاقمنا المتخصص على مدار الساعة. لا تترددوا في التواصل.`,
+    time: new Date().toLocaleTimeString('ar', {hour:'2-digit',minute:'2-digit'})
+  });
+}
+
+function listenChat() {
+  const { ref, onValue } = window._fb;
+  const chatRef = ref(db, `${session.path}/parentChat`);
+  chatUnsub = onValue(chatRef, snap => {
+    const msgs = snap.val();
+    if (!msgs) return;
+    const container = document.getElementById('chatMsgs');
+    // نضيف فقط الرسائل الجديدة
+    const existing = new Set([...container.querySelectorAll('[data-mid]')].map(e=>e.dataset.mid));
+    const entries  = Object.entries(msgs);
+    entries.sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
+    let hasNew = false;
+    entries.forEach(([key, msg]) => {
+      if (!existing.has(key)) {
+        addMsgToUI({
+          id: key,
+          sender: msg.sender === 'parent' ? 'mine' : 'other',
+          name: msg.senderName || (msg.sender==='parent'?'أنت':'الفريق الطبي'),
+          text: msg.text,
+          time: msg.timeStr || '--'
+        });
+        hasNew = true;
+      }
+    });
+    if (hasNew) document.getElementById('chatMsgs').scrollTop=9999;
+  });
+}
+
+function addMsgToUI({id, sender, name, text, time}) {
+  const c    = document.getElementById('chatMsgs');
+  const isMine = sender === 'mine' || sender === 'parent';
+  const d    = document.createElement('div');
+  d.className= 'msg ' + (isMine ? 'mine' : 'other');
+  if (id) d.dataset.mid = id;
+  d.innerHTML = `
+    <div class="msg-av">${isMine ? '👤' : '🩺'}</div>
+    <div class="msg-body">
+      <div class="msg-bubble">${escHtml(text).replace(/\n/g,'<br>')}</div>
+      <div class="msg-meta">${isMine?'':'<strong>'+escHtml(name)+'</strong> · '}${time}</div>
+    </div>`;
+  c.appendChild(d);
+  c.scrollTop=9999;
+}
+
+window.sendMsg = async () => {
+  const inp = document.getElementById('chatIn');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  inp.value='';
+  document.getElementById('sendBtn').disabled=true;
+
+  const { ref, push, set } = window._fb;
+  const timeStr = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+  const msg = {
+    sender:'parent', senderName: session.name,
+    fileNo: session.file, text: txt,
+    timeStr, ts: Date.now()
+  };
+  try {
+    const r = push(ref(db, `${session.path}/parentChat`));
+    await set(r, msg);
+  } catch(e) { alert('فشل الإرسال: '+e.message); }
+  document.getElementById('sendBtn').disabled=false;
+};
+
+window.chatKey = (e) => {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+};
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ════════ TABS ════════
+window.openTab = (name) => {
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.currentTarget.classList.add('active');
+};
+
+// ════════ CAMERA ════════
+const RTC_CFG = {
+  iceServers:[
+    {urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']},
+    {urls:'turn:openrelay.metered.ca:80',    username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:openrelay.metered.ca:443',   username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
+  ]
+};
+const viewerId = 'parent-' + Math.random().toString(36).slice(2,8);
+
+window.connectParentCam = async () => {
+  if (!db) { alert('يجب تسجيل الدخول أولاً'); return; }
+  const roomId = document.getElementById('camRoom').value.trim()||'room-incubator-1';
+  const { ref, onValue, set, push } = window._fb;
+  setCamSt('جاري الاتصال...','yellow');
+
+  if (camWatcher) { camWatcher(); camWatcher=null; }
+
+  camWatcher = onValue(ref(db,`rooms/${roomId}/broadcast`), async snap=>{
+    const data=snap.val();
+    if (data&&data.active) {
+      if (!camActive) { camActive=true; await startViewerRtc(roomId); }
+    } else {
+      camActive=false;
+      document.getElementById('camPh').style.display='flex';
+      if(camPc){camPc.close();camPc=null;}
+      setCamSt('الهاتف غير نشط — تأكد من تشغيل camera.html','red');
+    }
+  });
+};
+
+async function startViewerRtc(roomId) {
+  const {ref,onValue,set,push}=window._fb;
+  if(camPc){camPc.close();camPc=null;}
+  camPc = new RTCPeerConnection(RTC_CFG);
+  camPc.ontrack=e=>{
+    const vid=document.getElementById('camVid');
+    vid.srcObject=e.streams[0]; vid.play().catch(()=>{});
+    document.getElementById('camPh').style.display='none';
+    document.getElementById('camLive').style.display='flex';
+    setCamSt('بث مباشر ✦','green');
+  };
+  camPc.onicecandidate=async({candidate})=>{
+    if(candidate){
+      const r=push(ref(db,`rooms/${roomId}/vcandidates/${viewerId}`));
+      await set(r,candidate.toJSON());
+    }
+  };
+  camPc.onconnectionstatechange=()=>{
+    const s=camPc?.connectionState;
+    if(s==='disconnected'||s==='failed'){
+      setCamSt('انقطع البث — جاري إعادة المحاولة...','yellow');
+      setTimeout(()=>{if(camActive)startViewerRtc(roomId);},3000);
+    }
+  };
+  camPc.addTransceiver('video',{direction:'recvonly'});
+  const offer=await camPc.createOffer();
+  await camPc.setLocalDescription(offer);
+  await set(ref(db,`rooms/${roomId}/offers/${viewerId}`),{sdp:offer.sdp});
+  onValue(ref(db,`rooms/${roomId}/answers/${viewerId}`),async snap=>{
+    const d=snap.val();
+    if(d&&d.sdp&&!camPc.remoteDescription)
+      await camPc.setRemoteDescription({type:'answer',sdp:d.sdp});
+  });
+  onValue(ref(db,`rooms/${roomId}/bcandidates/${viewerId}`),snap=>{
+    snap.forEach(c=>{
+      if(c.val()&&camPc.remoteDescription)
+        camPc.addIceCandidate(new RTCIceCandidate(c.val())).catch(()=>{});
+    });
+  });
+}
+
+window.disconnectParentCam = ()=>{
+  camActive=false;
+  if(camPc){camPc.close();camPc=null;}
+  if(camWatcher){camWatcher();camWatcher=null;}
+  const vid=document.getElementById('camVid'); if(vid) vid.srcObject=null;
+  document.getElementById('camPh').style.display='flex';
+  document.getElementById('camLive').style.display='none';
+  setCamSt('غير متصل','');
+};
+
+window.camFullscreen=()=>{
+  const v=document.getElementById('camVid');
+  if(document.fullscreenElement) document.exitFullscreen();
+  else v.requestFullscreen().catch(()=>{});
+};
+window.camSnap=()=>{
+  const v=document.getElementById('camVid');
+  if(!v.srcObject){alert('لا يوجد بث نشط');return;}
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth;c.height=v.videoHeight;
+  c.getContext('2d').drawImage(v,0,0);
+  c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='baby-'+Date.now()+'.jpg';a.click();},'image/jpeg',.9);
+};
+
+function setCamSt(msg,color){
+  document.getElementById('camStatusTxt').textContent=msg;
+}
+
+</script>
+</body>
+</html>
